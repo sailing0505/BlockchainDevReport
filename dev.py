@@ -141,9 +141,15 @@ class DevOracle:
             print('Could not open toml file - check formatting.')
             sys.exit(1)
 
+    def filter_repo(self,repos):
+        filtered = ["aave/aave-gitcoin-hackaton-2019"]
+        return [x for x in repos if x not in filtered]
+
     # get the data for all the repos of a github organization
     def _get_repo_data_for_org(self, org_name: str, year_count=1):
         org_repos = self._make_org_repo_list(org_name)
+        org_repos = self.filter_repo(org_repos)
+        print(f"{org_name}'s repos {org_repos}")
         forked_repos = []
         page = 1
         url = f"https://api.github.com/orgs/{org_name}/repos?type=forks&page={page}&per_page=100"
@@ -183,6 +189,7 @@ class DevOracle:
             out_file_name_with_path = get_single_repo_stats_json_file_path(
                 org_then_slash_then_repo)
             if path.exists(out_file_name_with_path):
+                print(f"fetch {org_then_slash_then_repo} from file")
                 with open(out_file_name_with_path, 'r') as single_repo_data_json:
                     return json.load(single_repo_data_json)
 
@@ -429,7 +436,7 @@ if __name__ == '__main__':
     if not options.frequency:
         options.frequency = 4
 
-    years_count = int(sys.argv[2]) if sys.argv[2] else 1
+    years_count = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 
     do = DevOracle('./output', options.frequency)
     do.get_and_save_full_stats(sys.argv[1], years_count)

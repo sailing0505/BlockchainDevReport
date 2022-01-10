@@ -17,6 +17,7 @@ class Visualize:
     def __init__(self):
         self.chains = get_chain_names().split(" ")
         self.target_names = get_chain_targets().split(", ")
+        print(self.chains)
         self.xaxis = ['Jan 2020', 'Feb 2020', 'Mar 2020', 'Apr 2020', 'May 2020',
                       'Jun 2020', 'Jul 2020', 'Aug 2020', 'Sep 2020', 'Oct 2020', 'Nov 2020', 'Dec 2020']
         end = datetime.now()
@@ -29,12 +30,18 @@ class Visualize:
         for chain in self.chains:
             output_path = path.join(
                 dir_path, 'output', chain + '_history.json')
+            print(output_path)
             try:
-                with open(output_path) as json_file:
+                with open(output_path, 'r') as json_file:
                     data = json.load(json_file)
-                self.commits[chain] = data['weekly_commits']
+                if len(data['weekly_commits']) < 52:
+                    start = len(data['weekly_commits'])
+                    for i in range(52 - start):
+                        data['weekly_commits'].append(0)
+                self.commits[chain] = data['weekly_commits'][-52:]
                 self.churn[chain] = data['weekly_churn'][-52:]
-            except:
+                print(self.churn)
+            except Exception as e:
                 print('Not found history output for ' + chain +
                       ', please remove from config and rerun')
         sns.set(style="darkgrid")
@@ -51,6 +58,7 @@ class Visualize:
         percentage_changes = pd.DataFrame({'Protocol': self.target_names})
         change_list = []
         for index, chain in enumerate(self.chains):
+            print(f"{index}: {chain}")
             if commits_or_churn_df[chain].mean() < 10:
                 # Negligible commits or churn, dead protocol
                 print(commits_or_churn.capitalize(

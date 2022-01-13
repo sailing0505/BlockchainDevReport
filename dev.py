@@ -9,12 +9,13 @@ from itertools import zip_longest
 from os import path
 import optparse
 import toml
-from github import Github
+from github import Github, GithubException, RateLimitExceededException
 from joblib import Parallel, delayed
 from gitTokenHelper import GithubPersonalAccessTokenHelper
 from config import get_pats, remove_chain_from_config
 import requests
 import datetime
+import traceback
 
 dir_path = path.dirname(path.realpath(__file__))
 
@@ -141,8 +142,31 @@ class DevOracle:
             print('Could not open toml file - check formatting.')
             sys.exit(1)
 
+    def repo_avaliable(self, repo):
+        try:
+            r = self.gh.get_repo(repo)
+            bs = r.get_branches()
+            if bs.totalCount == 0:
+                return False
+            return True
+        except GithubException as e:
+            if isinstance(e, RateLimitExceededException):
+                print("Token rate limit reached, switching tokens")
+                PAT = self._get_access_token()
+                self.gh = Github(PAT)
+                self.repo_avaliable(repo)
+        except Exception as e:
+            print(f'repo {repo} is not avaliable anymore, filter it')
+            return False
+
     def filter_repo(self,repos):
-        filtered = ["aave/aave-gitcoin-hackaton-2019"]
+        print("check whether the repo is avaliable")
+        filtered = []
+        for repo in repos:
+            if not self.repo_avaliable(repo):
+                filtered.append(repo)
+        print(f'repos to be filtered: {filtered}')
+        # filtered = ["aave/aave-gitcoin-hackaton-2019"]
         return [x for x in repos if x not in filtered]
 
     # get the data for all the repos of a github organization
@@ -199,22 +223,30 @@ class DevOracle:
                 single_repo_data_json.write(json.dumps(dict(repo_data)))
             return repo_data
         except Exception as e:
+            traceback.print_exc()
             print(f"Exception occured while fetching single repo data {e}")
             sys.exit(1)
 
     # get repo data using a repo URL in the form of `org/repo`
     def _get_single_repo_data_from_api(self, org_then_slash_then_repo: str, year_count: int = 1):
-        print('Fetching repo data for ', org_then_slash_then_repo)
+        print('Fetching repo data for ', org_then_slash_then_repo, ' by github API')
         try:
             repo = self.gh.get_repo(org_then_slash_then_repo)
             weekly_add_del = repo.get_stats_code_frequency()
             weekly_commits = self._get_weekly_commits(
                 self.PAT, org_then_slash_then_repo, year_count)
             # TODO: Remove contributor specific code
-            weekly_add_del = [{"additions": code_freq_obj._rawData[1],
-                               "deletions": code_freq_obj._rawData[2]} for code_freq_obj in weekly_add_del]
-            contributors = [
-                contributor.author.login for contributor in repo.get_stats_contributors()]
+            if weekly_add_del != None and len(weekly_add_del) > 0:
+                weekly_add_del = [{"additions": code_freq_obj._rawData[1],
+                                "deletions": code_freq_obj._rawData[2]} for code_freq_obj in weekly_add_del]
+            else:
+                weekly_add_del = [{"additions": 0, "deletions": 0}]
+            ctrs = repo.get_stats_contributors()
+            if ctrs != None and len(ctrs) > 0:
+                contributors = [
+                    contributor.author.login for contributor in repo.get_stats_contributors()]
+            else:
+                contributors = []
             return {
                 "name": org_then_slash_then_repo,
                 "repo": {
@@ -226,12 +258,14 @@ class DevOracle:
                 "contributors": contributors,
                 "releases": repo.get_releases().totalCount
             }
-        except Exception as e:
-            if e.status == 403:
+        except GithubException as e:
+            if isinstance(e, RateLimitExceededException):
                 print("Token rate limit reached, switching tokens")
                 PAT = self._get_access_token()
                 self.gh = Github(PAT)
                 return self._get_single_repo_data(org_then_slash_then_repo, year_count)
+        except Exception as e:
+            print(f'fetch repo {org_then_slash_then_repo} failed with exception', e)
             raise e
 
     def _get_weekly_commits(self, pat, org_then_slash_then_repo, year_count):

@@ -11,7 +11,7 @@ ELECTRIC_CAPITAL_RAW_CONTENT_BASE_URL = "https://raw.githubusercontent.com/elect
 
 
 def update_toml_data(coin_name):
-    print("Try updating .toml file for %s ..." % coin_name)
+    print("Try updating %.toml file ..." % coin_name)
     if len(coin_name) == 0:
         raise Exception("Invalid blockchain name")
 

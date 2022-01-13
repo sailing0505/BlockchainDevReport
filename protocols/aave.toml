@@ -1,19 +1,35 @@
 # Ecosystem Level Information
 title = "Aave"
 
-sub_ecosystems = []
+sub_ecosystems = ["Aavegotchi"]
 
-github_organizations = ["https://github.com/aave"]
+github_organizations = ["https://github.com/aave", "https://github.com/ExtraCredit-Team"]
 
 # Repositories
-#[[repo]]
-#url = "https://github.com/aave/aave-gitcoin-hackaton-2019"
+[[repo]]
+url = "https://github.com/aave/aave-addresses"
+
+[[repo]]
+url = "https://github.com/aave/aave-api"
+
+[[repo]]
+url = "https://github.com/aave/aave-asset-listing"
+
+[[repo]]
+url = "https://github.com/aave/aave-gitcoin-hackaton-2019"
+
+[[repo]]
+url = "https://github.com/aave/aave-grants-update-and-renewal"
 
 [[repo]]
 url = "https://github.com/aave/aave-js"
 
 [[repo]]
 url = "https://github.com/aave/aave-protocol"
+tags = ["Protocol"]
+
+[[repo]]
+url = "https://github.com/aave/aave-sandbox"
 
 [[repo]]
 url = "https://github.com/aave/aave-stake-v2"
@@ -25,13 +41,37 @@ url = "https://github.com/aave/aave-token"
 url = "https://github.com/aave/aave-token-v2"
 
 [[repo]]
+url = "https://github.com/aave/aave-ui"
+
+[[repo]]
+url = "https://github.com/aave/aave-ui-caching-server"
+
+[[repo]]
+url = "https://github.com/aave/aave-ui-kit"
+
+[[repo]]
+url = "https://github.com/aave/aave-utilities"
+
+[[repo]]
 url = "https://github.com/aave/aip"
 
 [[repo]]
 url = "https://github.com/aave/aip-uploader"
 
 [[repo]]
+url = "https://github.com/aave/app-plugin-paraswap"
+
+[[repo]]
+url = "https://github.com/aave/arc-timelock"
+
+[[repo]]
+url = "https://github.com/aave/blockchain-security-contacts"
+
+[[repo]]
 url = "https://github.com/aave/code-examples-protocol"
+
+[[repo]]
+url = "https://github.com/aave/Data-Science-"
 
 [[repo]]
 url = "https://github.com/aave/DeFi-Pulse-Adapters"
@@ -52,10 +92,22 @@ url = "https://github.com/aave/flashloan-box"
 url = "https://github.com/aave/genesis-migration"
 
 [[repo]]
+url = "https://github.com/aave/governance-crosschain-bridges"
+
+[[repo]]
+url = "https://github.com/aave/governance-delegation-subgraph"
+
+[[repo]]
 url = "https://github.com/aave/governance-v2"
 
 [[repo]]
 url = "https://github.com/aave/governance-v2-subgraph"
+
+[[repo]]
+url = "https://github.com/aave/incentives-controller"
+
+[[repo]]
+url = "https://github.com/aave/incentives-proposal"
 
 [[repo]]
 url = "https://github.com/aave/liquidation-ui"
@@ -67,16 +119,44 @@ url = "https://github.com/aave/loanlord-bot"
 url = "https://github.com/aave/markets-adapters"
 
 [[repo]]
+url = "https://github.com/aave/pinata-action"
+
+[[repo]]
+url = "https://github.com/aave/price-aggregators"
+
+[[repo]]
 url = "https://github.com/aave/proto-governance"
 
 [[repo]]
 url = "https://github.com/aave/protocol-v2"
+tags = ["Protocol"]
+
+[[repo]]
+url = "https://github.com/aave/protocol-v2-subgraph"
 
 [[repo]]
 url = "https://github.com/aave/safety-module"
 
 [[repo]]
+url = "https://github.com/aave/snapshot.js"
+
+[[repo]]
 url = "https://github.com/aave/split-croatia-workshop"
 
 [[repo]]
+url = "https://github.com/aave/sybil-interface"
+
+[[repo]]
+url = "https://github.com/aave/tests-protocol-v2-sigmaprime"
+
+[[repo]]
 url = "https://github.com/aave/uniswap-frontend"
+
+[[repo]]
+url = "https://github.com/aave/upgradeable-configurable-rights-pool"
+
+[[repo]]
+url = "https://github.com/ExtraCredit-Team/ExtraCredit"
+
+[[repo]]
+url = "https://github.com/ExtraCredit-Team/extracredit-landing"

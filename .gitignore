@@ -11,3 +11,4 @@ protocols/*.txt
 logfile.log
 __pycache__
 .env
+.vscode

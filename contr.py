@@ -61,7 +61,7 @@ class Contributors:
         repos = set()
         toml_file_path = path.join(dir_path, 'protocols', protocol + '.toml')
         if not path.exists(toml_file_path):
-            print(".toml file not found for %s in /protocols folder" % chain_name)
+            print(".toml file not found for %s in /protocols folder" % protocol)
             sys.exit(1)
         try:
             with open(toml_file_path, 'r') as f:

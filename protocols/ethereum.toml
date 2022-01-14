@@ -576,8 +576,8 @@ sub_ecosystems = [
 ]
 
 github_organizations = [
-#  "https://github.com/commons-stack",
-#  "https://github.com/crytic",
+  "https://github.com/commons-stack",
+  "https://github.com/crytic",
   "https://github.com/dapphub",
   "https://github.com/dappnode",
   "https://github.com/databrokerglobal",

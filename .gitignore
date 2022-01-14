@@ -12,3 +12,5 @@ logfile.log
 __pycache__
 .env
 .vscode
+log/
+org_history.json

@@ -1,15 +1,17 @@
+import logging
 import json
+import sys
 import multiprocessing
 import os
 import re
-from logger import sys
+import logger
 import time
 from collections import Counter
 from itertools import zip_longest
 from os import path
 import optparse
 import toml
-from github import Github, GithubException, RateLimitExceededException
+from github import Github, GithubException, RateLimitExceededException, BadCredentialsException
 from joblib import Parallel, delayed
 from gitTokenHelper import GithubPersonalAccessTokenHelper
 from config import get_pats, remove_chain_from_config
@@ -88,35 +90,47 @@ class DevOracle:
         res = self.gh_pat_helper.get_access_token()
         if "token" in res and res["token"] is not None:
             return res["token"]
-        print('Going to sleep since no token exists with usable rate limit')
+        logging.info('Going to sleep since no token exists with usable rate limit')
         time.sleep(res["sleep_time_secs"])
         return self._get_access_token()
 
+    def save_history(self, orgs: list[str]):
+        with open("org_history.json", "w") as f:
+            json.dump(orgs, f)
+    
+    def get_history(self) -> list[str]:
+        with open("org_history.json", 'r') as f:
+            data = json.load(f)
+        return data
+
     def get_and_save_full_stats(self, chain_name: str, year_count):
         github_orgs = self._read_orgs_for_chain_from_toml(chain_name)
+        handled_org = self.get_history()
+        github_orgs = [x for x in github_orgs if x not in handled_org]
 
         stats_counter = Counter()
         hist_data = None
-
         for org_url in github_orgs:
             if not org_url.startswith("https://github.com/"):
                 # TODO: If Gitlab repo then use Gitlab APIs
-                print("%s is not a github repo...Skipping" % org_url)
+                logging.info("%s is not a github repo...Skipping" % org_url)
                 continue
             org = org_url.split("https://github.com/")[1]
-            print("Fetching repo data for", org)
+            logging.info(f"Fetching repos for org {org}")
             org_repo_data_list = self._get_repo_data_for_org(org, year_count)
-            print("Fetching stats(stargazers, forks, releases, churn_4w) for", org_url)
+            logging.info(f"Fetching stats(stargazers, forks, releases, churn_4w) for org {org}")
             stats_counter += self._get_stats_for_org_from_repo_data(
                 org_repo_data_list)
             hist_data_for_org = self._get_historical_progress(
                 org_repo_data_list)
-            print("Combining hist data ...")
+            logging.info("Combining hist data ...")
             hist_data = self._combine_hist_data(hist_data, hist_data_for_org)
+            handled_org.append(org_url)
+            self.save_history(handled_org)
 
         if hist_data == None or stats_counter == {}:
             remove_chain_from_config(chain_name)
-            print('No data found for organisation in toml file')
+            logging.info('No data found for organisation in toml file')
             sys.exit(1)
 
         path_prefix = self.save_path + '/' + chain_name
@@ -130,16 +144,16 @@ class DevOracle:
     def _read_orgs_for_chain_from_toml(self, chain_name):
         toml_file_path = path.join(dir_path, 'protocols', chain_name + '.toml')
         if not path.exists(toml_file_path):
-            print(".toml file not found for %s in /protocols folder" % chain_name)
+            logging.info(".toml file not found for %s in /protocols folder" % chain_name)
             sys.exit(1)
         try:
             with open(toml_file_path, 'r') as f:
                 data = f.read()
-            print("Fetching organizations for %s from toml file ..." % chain_name)
+            logging.info("Fetching organizations for %s from toml file ..." % chain_name)
             github_orgs = toml.loads(data)['github_organizations']
             return github_orgs
         except:
-            print('Could not open toml file - check formatting.')
+            logging.info('Could not open toml file - check formatting.')
             sys.exit(1)
 
     def repo_avaliable(self, repo):
@@ -150,22 +164,20 @@ class DevOracle:
                 return False
             return True
         except GithubException as e:
-            if isinstance(e, RateLimitExceededException):
-                print("Token rate limit reached, switching tokens")
-                PAT = self._get_access_token()
-                self.gh = Github(PAT)
+            if isinstance(e, RateLimitExceededException) or isinstance(e, BadCredentialsException):
+                self._rest_token()
                 self.repo_avaliable(repo)
         except Exception as e:
-            print(f'repo {repo} is not avaliable anymore, filter it')
+            logging.info(f'repo {repo} is not avaliable anymore, filter it')
             return False
 
     def filter_repo(self,repos):
-        print("check whether the repo is avaliable")
+        logging.info("check whether the repo is avaliable")
         filtered = []
         for repo in repos:
             if not self.repo_avaliable(repo):
                 filtered.append(repo)
-        print(f'repos to be filtered: {filtered}')
+        logging.info(f'repos to be filtered: {filtered}')
         # filtered = ["aave/aave-gitcoin-hackaton-2019"]
         return [x for x in repos if x not in filtered]
 
@@ -173,15 +185,18 @@ class DevOracle:
     def _get_repo_data_for_org(self, org_name: str, year_count=1):
         org_repos = self._make_org_repo_list(org_name)
         org_repos = self.filter_repo(org_repos)
-        print(f"{org_name}'s repos {org_repos}")
+        logging.info(f"{org_name}'s repos {org_repos}")
         forked_repos = []
         page = 1
         url = f"https://api.github.com/orgs/{org_name}/repos?type=forks&page={page}&per_page=100"
-        response = requests.get(
-            url, headers={'Authorization': 'Token ' + self.PAT})
+        response = requests.get(url, headers={'Authorization': 'Token ' + self.PAT})
         while len(response.json()) > 0:
             for repo in response.json():
-                forked_repos.append(repo["full_name"])
+                try:
+                    forked_repos.append(repo["full_name"])
+                except TypeError:
+                    logging.error(f"get repo from org failed", exc_info=True)
+                    break
             page += 1
             url = f"https://api.github.com/orgs/{org_name}/repos?type=forks&page={page}&per_page=100"
             response = requests.get(
@@ -191,7 +206,7 @@ class DevOracle:
         # number_of_hyperthreads = multiprocessing.cpu_count()
         number_of_hyperthreads = 1
         n_jobs = 2 if number_of_hyperthreads > 2 else number_of_hyperthreads
-        print("Fetching single repo data ...")
+        logging.info("Fetching single repo data ...")
         repo_data_list = Parallel(n_jobs=n_jobs)(delayed(
             self._get_single_repo_data)(repo, year_count) for repo in unforked_repos)
         return repo_data_list
@@ -213,7 +228,7 @@ class DevOracle:
             out_file_name_with_path = get_single_repo_stats_json_file_path(
                 org_then_slash_then_repo)
             if path.exists(out_file_name_with_path):
-                print(f"fetch {org_then_slash_then_repo} from file")
+                logging.info(f"fetch {org_then_slash_then_repo} from file")
                 with open(out_file_name_with_path, 'r') as single_repo_data_json:
                     return json.load(single_repo_data_json)
 
@@ -224,12 +239,12 @@ class DevOracle:
             return repo_data
         except Exception as e:
             traceback.print_exc()
-            print(f"Exception occured while fetching single repo data {e}")
+            logging.info(f"Exception occured while fetching single repo data {e}")
             sys.exit(1)
 
     # get repo data using a repo URL in the form of `org/repo`
     def _get_single_repo_data_from_api(self, org_then_slash_then_repo: str, year_count: int = 1):
-        print('Fetching repo data for ', org_then_slash_then_repo, ' by github API')
+        logging.info(f'Fetching repo data for {org_then_slash_then_repo} by github API')
         try:
             repo = self.gh.get_repo(org_then_slash_then_repo)
             weekly_add_del = repo.get_stats_code_frequency()
@@ -259,14 +274,17 @@ class DevOracle:
                 "releases": repo.get_releases().totalCount
             }
         except GithubException as e:
-            if isinstance(e, RateLimitExceededException):
-                print("Token rate limit reached, switching tokens")
-                PAT = self._get_access_token()
-                self.gh = Github(PAT)
+            if isinstance(e, RateLimitExceededException) or isinstance(e, BadCredentialsException):
+                self._rest_token()
                 return self._get_single_repo_data(org_then_slash_then_repo, year_count)
         except Exception as e:
-            print(f'fetch repo {org_then_slash_then_repo} failed with exception', e)
+            logging.error(f'fetch repo {org_then_slash_then_repo} failed with exception', exc_info=True)
             raise e
+
+    def _rest_token(self):
+        logging.info("Token rate limit reached, switching tokens")
+        PAT = self._get_access_token()
+        self.gh = Github(PAT)
 
     def _get_weekly_commits(self, pat, org_then_slash_then_repo, year_count):
         weekly_commits = []
@@ -292,11 +310,11 @@ class DevOracle:
                     date_until_formatted
                 )
                 if resp["error_code"] == 403:
-                    print("Token rate limit reached, switching tokens")
+                    logging.info("Token rate limit reached, switching tokens")
                     pat = self._get_access_token()
                     continue
                 if resp["error_code"]:
-                    print("Error code: ", resp["error_code"])
+                    logging.info(f"Error code: {resp['error_code']}")
                     raise Exception(
                         f"Error occured while fetching weekly commits for {org_then_slash_then_repo}")
                 count = len(resp["data"])
@@ -429,7 +447,7 @@ class DevOracle:
             }
             return stats
         except Exception as e:
-            print(e)
+            logging.info("_get_weekly_churn_and_commits_of_repo faield", exc_info=True)
             stats = {
                 'weekly_churn': [],
                 'weekly_commits': weekly_commits,
@@ -462,6 +480,7 @@ class DevOracle:
 
 
 if __name__ == '__main__':
+    logger.setup("dev_py")
     p = optparse.OptionParser()
     p.add_option('--frequency', type='int', dest='frequency',
                  help='Enter churn, commit frequency')

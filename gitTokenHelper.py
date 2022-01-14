@@ -20,7 +20,7 @@ class GithubPersonalAccessTokenHelper():
                 self.pats.append(pat)
             except GithubException as e:
                 # Probably a bad access token
-                print("Error while querying for personal access token")
+                print(f"Error while querying for personal access token: {pat}")
                 print(e)
                 continue
         # Need atleast one valid personal access token

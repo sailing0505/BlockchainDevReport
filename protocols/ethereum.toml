@@ -612,7 +612,7 @@ github_organizations = [
   "https://github.com/ScopeLift",
   "https://github.com/sigp",
   "https://github.com/solidstate-network",
-  "https://github.com/StudentCoinTeam",
+  "https://github.com/StudentCoinTeam", #notworking
   "https://github.com/tasitlabs",
   "https://github.com/thehubbleproject",
   "https://github.com/thousandetherhomepage",

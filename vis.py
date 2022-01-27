@@ -1,3 +1,4 @@
+from time import strftime
 import seaborn as sns
 import pandas as pd
 import json
@@ -7,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from os import path
 import shutil
 import glob
+import os
 from config import get_chain_names, get_chain_targets
 
 dir_path = path.dirname(path.realpath(__file__))
@@ -18,10 +20,13 @@ class Visualize:
         self.chains = get_chain_names().split(" ")
         self.target_names = get_chain_targets().split(", ")
         print(self.chains)
-        self.xaxis = ['Jan 2020', 'Feb 2020', 'Mar 2020', 'Apr 2020', 'May 2020',
-                      'Jun 2020', 'Jul 2020', 'Aug 2020', 'Sep 2020', 'Oct 2020', 'Nov 2020', 'Dec 2020']
+        # self.xaxis = ['Jan 2020', 'Feb 2020', 'Mar 2020', 'Apr 2020', 'May 2020',
+                    #   'Jun 2020', 'Jul 2020', 'Aug 2020', 'Sep 2020', 'Oct 2020', 'Nov 2020', 'Dec 2020']
         end = datetime.now()
         start = datetime.now() - relativedelta(years=1)
+        #get the years scope dynamicly
+        self.xaxis = pd.date_r
+        ange(start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'), freq='MS').strftime('%b %Y').tolist()
         date_index = pd.date_range(start, end, freq='W')
         if len(date_index) > 52:
             date_index = date_index.drop(date_index[-1])
@@ -154,12 +159,14 @@ class Visualize:
         self.plot_commits(code, percentage_changes)
         code, percentage_changes = self.prep_code('churn')
         self.plot_churn(code, percentage_changes)
-        protocols_comparison, percentage_changes = self.prep_devs()
-        self.plot_devs(protocols_comparison, percentage_changes)
+
+        # contributer
+        # protocols_comparison, percentage_changes = self.prep_devs()
+        # self.plot_devs(protocols_comparison, percentage_changes)
         for file in glob.glob('./*.png'):
-            shutil.move(file, './res')
+            shutil.move(file, os.path.join('./res',os.path.basename(file)))
         for file in glob.glob('./*.csv'):
-            shutil.move(file, './res')
+            shutil.move(file, os.path.join('./res',os.path.basename(file)))
 
 
 if __name__ == '__main__':

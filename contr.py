@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-
+import logging
 import asyncio
 import datetime as dt
 import json
 from os import path, remove
 import re
-from logger import sys
+import logger
+import sys
 from asyncio import get_event_loop, ensure_future
 import requests
 import toml
@@ -57,11 +58,12 @@ class Contributors:
     # Includes all the core github org/user repos and the repo urls listed in toml
     # Ensure protocol is same as name of toml file
     async def get_repos_for_protocol_from_toml(self, protocol):
+        logging.info(f"get repos for org {protocol}")
         pat = await self._get_access_token()
         repos = set()
         toml_file_path = path.join(dir_path, 'protocols', protocol + '.toml')
         if not path.exists(toml_file_path):
-            print(".toml file not found for %s in /protocols folder" % protocol)
+            logging.error(".toml file not found for %s in /protocols folder" % protocol)
             sys.exit(1)
         try:
             with open(toml_file_path, 'r') as f:
@@ -69,7 +71,7 @@ class Contributors:
             github_orgs = toml.loads(data)['github_organizations']
             repos_in_toml = toml.loads(data)['repo']
         except:
-            print('Could not open toml file - check formatting!!')
+            logging.error('Could not open toml file - check formatting!!')
             sys.exit(1)
 
         for org in github_orgs:
@@ -85,7 +87,8 @@ class Contributors:
                     url, headers={'Authorization': 'Token ' + pat})
                 while len(response.json()) > 0:
                     for repo in response.json():
-                        all_org_repos.append(repo["full_name"])
+                        if "full_name" in repo:
+                            all_org_repos.append(repo["full_name"])
                     page += 1
                     url = f"https://api.github.com/orgs/{org_name}/repos?page={page}&per_page=100"
                     response = requests.get(
@@ -115,14 +118,15 @@ class Contributors:
                 response = requests.get(
                     url, headers={'Authorization': 'Token ' + pat})
                 for repo in response.json():
-                    repos.add(repo["full_name"].lower())
+                    if "full_name" in repo:
+                        repos.add(repo["full_name"].lower())
         return list(repos)
 
     async def _get_access_token(self):
         res = self.gh_pat_helper.get_access_token()
         if "token" in res and res["token"] is not None:
             return res["token"]
-        print('Going to sleep since no token exists with usable rate limit')
+        logging.info('Going to sleep since no token exists with usable rate limit')
         await asyncio.sleep(res["sleep_time_secs"])
         return await self._get_access_token()
 
@@ -155,7 +159,7 @@ class Contributors:
                 else:
                     batch_end = batch_start + remaining_requests_to_be_made
 
-                print("Start", batch_start, "End", batch_end)
+                logging.info(f"Start {batch_start} End {batch_end}")
 
                 # get data for page from batch_start to batch_end
                 tasks = []
@@ -176,24 +180,24 @@ class Contributors:
                     if response["error"]:
                         # Get 502 some times
                         if response["error_code"] == 403 or response["error_code"] // 100 == 5:
-                            print("Rate limit trigger detected")
+                            logging.info("Rate limit trigger detected")
                             rate_limit_exceeded = True
                             break
                         # Printing unhandled error and exiting
-                        print(response)
+                        logging.info(response)
                         sys.exit(1)
 
                     if not isinstance(response["data"], list):
-                        print(response["error"])
+                        logging.info(response["error"])
                         sys.exit(1)
                     successful_responses_count += 1
                     commits.extend(response["data"])
 
                 if rate_limit_exceeded:
-                    print("Hourly rate limit exceeded for current token")
+                    logging.info("Hourly rate limit exceeded for current token")
                     pat = await self._get_access_token()
 
-                print("Successful reqs: ", successful_responses_count)
+                logging.info(f"Successful reqs: {successful_responses_count}")
                 remaining_requests_to_be_made -= successful_responses_count
                 rate_limit_remaining -= successful_responses_count
                 batch_start += successful_responses_count
@@ -211,7 +215,7 @@ class Contributors:
                         # GitHub username
                         contributors.append(item['author']['login'])
             except Exception as e:
-                print(e)
+                logging.info(e)
                 sys.exit(1)
         # De-duplicate commiters
         deduplicated_contributors = list(set(contributors))
@@ -253,7 +257,7 @@ class Contributors:
                 else:
                     batch_end = batch_start + remaining_requests_to_be_made
 
-                print("Start", batch_start, "End", batch_end)
+                logging.info(f"Start {batch_start} End {batch_end}")
 
                 # get data for page from batch_start to batch_end
                 tasks = []
@@ -274,24 +278,24 @@ class Contributors:
                     if response["error"]:
                         # Get 502 some times
                         if response["error_code"] == 403 or response["error_code"] // 100 == 5:
-                            print("Rate limit trigger detected")
+                            logging.info("Rate limit trigger detected")
                             rate_limit_exceeded = True
                             break
                         # Printing unhandled error and exiting
-                        print(response)
+                        logging.info(response)
                         sys.exit(1)
 
                     if not isinstance(response["data"], list):
-                        print(response["error"])
+                        logging.error(response["error"])
                         sys.exit(1)
                     successful_responses_count += 1
                     commits.extend(response["data"])
 
                 if rate_limit_exceeded:
-                    print("Hourly rate limit exceeded for current token")
+                    logging.info("Hourly rate limit exceeded for current token")
                     pat = await self._get_access_token()
 
-                print("Successful reqs: ", successful_responses_count)
+                logging.info(f"Successful reqs: {successful_responses_count}")
                 remaining_requests_to_be_made -= successful_responses_count
                 rate_limit_remaining -= successful_responses_count
                 batch_start += successful_responses_count
@@ -318,9 +322,8 @@ class Contributors:
                     if date >= start and date < end and item['author']:
                         contributors[index].append(item['author']['login'])
             except Exception as e:
-                print('Failed to get monthly contributors for ' +
-                      org_then_slash_then_repo)
-                print(e)
+                logging.exception('Failed to get monthly contributors for ' +
+                      org_then_slash_then_repo, exec_info=True)
                 sys.exit(1)
         # De-duplicate commiters
         for index, month_of_contributors in enumerate(contributors):
@@ -376,13 +379,13 @@ class Contributors:
         unseen_repo = []
         for repo in repos:
             if repo in seen_repos:
-                print("Ignoring seen repo: ", repo)
+                logging.info(f"Ignoring seen repo: {repo}")
                 continue
             unseen_repo.append(repo)
 
         # Don't thread this - API limit
         for repo in unseen_repo:
-            print("Analysing repo: ", repo)
+            logging.info(f"Analysing repo: {repo}")
             if monthly:
                 contributors = await self.get_monthly_contributors_of_repo_in_last_n_years(repo, n_years=years_count)
             else:
@@ -402,28 +405,27 @@ class Contributors:
                 with open(out_file_name_with_path, 'w') as outfile:
                     json.dump(data, outfile)
             except Exception as e:
-                print(
+                logging.exception(
                     'Failed to collate monthly contributors for all repos in toml file')
-                print(e)
                 sys.exit(1)
         try:
             with open(out_file_name_with_path) as json_file:
                 data = json.load(json_file)
         except Exception as e:
-            print(e)
+            logging.exception('Failed with unkonw exception')
             sys.exit(1)
         if monthly:
-            print('Monthly active developers in the past year:')
+            logging.info('Monthly active developers in the past year:')
             for index, month_of_contributors in enumerate(data):
                 deduplicated_monthly_contributors = list(
                     set(month_of_contributors))
                 data[index] = deduplicated_monthly_contributors
-                print('Month ' + str(index + 1) + ': ' +
+                logging.info('Month ' + str(index + 1) + ': ' +
                       str(len(deduplicated_monthly_contributors)))
             deduplicated_contributors = data
         else:
             deduplicated_contributors = list(set(data))
-            print('Total active developers in the past year: ' +
+            logging.info('Total active developers in the past year: ' +
                   str(len(deduplicated_contributors)))
         with open(out_file_name_with_path, 'w') as outfile:
             json.dump(deduplicated_contributors, outfile)
@@ -434,8 +436,9 @@ class Contributors:
 # Write to file every n repos + repos viewed to not lose progress
 
 if __name__ == '__main__':
+    logger.setup('contr_py')
     if not (len(sys.argv) == 2 or len(sys.argv) == 3):
-        print('Usage: python3 contr.py [INPUTFILE.TOML] [YEARS_COUNT]')
+        logging.info('Usage: python3 contr.py [INPUTFILE.TOML] [YEARS_COUNT]')
         sys.exit(1)
     loop = get_event_loop()
     try:

@@ -11,6 +11,7 @@ from itertools import zip_longest
 from os import path
 import optparse
 import toml
+import github
 from github import Github, GithubException, RateLimitExceededException, BadCredentialsException
 from joblib import Parallel, delayed
 from gitTokenHelper import GithubPersonalAccessTokenHelper
@@ -120,27 +121,7 @@ class DevOracle:
             org_repo_data_list = self._get_repo_data_for_org(org, year_count)
             logging.info(f"Fetching stats(stargazers, forks, releases, churn_4w) for org {org}")
             stats_counter += self._get_stats_for_org_from_repo_data(
-                org_repo_data_list)
-            hist_data_for_org = self._get_historical_progress(
-                org_repo_data_list)
-            logging.info("Combining hist data ...")
-            hist_data = self._combine_hist_data(hist_data, hist_data_for_org)
-            handled_org.append(org_url)
-            self.save_history(handled_org)
-
-        if hist_data == None or stats_counter == {}:
-            remove_chain_from_config(chain_name)
-            logging.info('No data found for organisation in toml file')
-            sys.exit(1)
-
-        path_prefix = self.save_path + '/' + chain_name
-        with open(path_prefix + '_stats.json', 'w') as outfile:
-            outfile.write(json.dumps(dict(stats_counter)))
-        with open(path_prefix + '_history.json', 'w') as outfile:
-            outfile.write(json.dumps(dict(hist_data)))
-
-    # list all the repos of a github org/user
-    # Ensure chain_name is same as name of toml file
+                org_repo_data_list)                                                                               
     def _read_orgs_for_chain_from_toml(self, chain_name):
         toml_file_path = path.join(dir_path, 'protocols', chain_name + '.toml')
         if not path.exists(toml_file_path):
@@ -186,6 +167,7 @@ class DevOracle:
         org_repos = self._make_org_repo_list(org_name)
         org_repos = self.filter_repo(org_repos)
         logging.info(f"{org_name}'s repos {org_repos}")
+        
         forked_repos = []
         page = 1
         url = f"https://api.github.com/orgs/{org_name}/repos?type=forks&page={page}&per_page=100"
@@ -195,7 +177,8 @@ class DevOracle:
                 try:
                     forked_repos.append(repo["full_name"])
                 except TypeError:
-                    logging.error(f"get repo from org failed", exc_info=True)
+                    logging.error(repo)
+                    logging.exception(f"get repo from org {org_name} failed", exc_info=True)
                     break
             page += 1
             url = f"https://api.github.com/orgs/{org_name}/repos?type=forks&page={page}&per_page=100"
@@ -216,7 +199,9 @@ class DevOracle:
         org_repos = []
         try:
             entity = self.gh.get_organization(org_name)
-        except:
+        except GithubException as e:
+            if isinstance(e, github.UnknownObjectException):
+                raise e
             entity = self.gh.get_user(org_name)
         for repo in entity.get_repos():
             org_repos.append(repo.name)
